@@ -338,8 +338,8 @@ app.post("/api/materiel", async (req, res) => {
     type, 
     quantite, 
     disponible, 
-    tarifHoraire, 
-    tarifHeureSupp, 
+    tarifhoraire, 
+    tarifheuresupp, 
     etat 
   } = req.body;
 
@@ -359,8 +359,8 @@ app.post("/api/materiel", async (req, res) => {
     const materielResult = await client.query(materielQuery, [
       quantite, 
       disponible, 
-      tarifHoraire, 
-      tarifHeureSupp, 
+      tarifhoraire, 
+      tarifheuresupp, 
       etat
     ]);
 
@@ -516,7 +516,89 @@ app.put("/api/materiel/:id/etat", async (req, res) => {
   }
 });
 
+// Route pour récupérer tous les campings
+app.get('/api/camping', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        idcamping, 
+        nom, 
+        partenaire 
+      FROM Camping
+      ORDER BY nom
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des campings :', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
+// Route pour ajouter un camping
+app.post('/api/camping', async (req, res) => {
+  const { nom, partenaire } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO Camping (nom, partenaire) 
+       VALUES ($1, $2) 
+       RETURNING idcamping, nom, partenaire`,
+      [nom, partenaire]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur lors de l\'ajout du camping :', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Route pour supprimer un camping
+app.delete('/api/camping/:id', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    // Début de la transaction
+    await client.query('BEGIN');
+
+    // Vérifier s'il y a des clients associés
+    const clientsAssocies = await client.query(
+      'SELECT COUNT(*) FROM Client WHERE idcamping = $1', 
+      [id]
+    );
+
+    if (parseInt(clientsAssocies.rows[0].count) > 0) {
+      // Mettre à NULL les références de camping dans la table Client
+      await client.query(
+        'UPDATE Client SET idcamping = NULL WHERE idcamping = $1', 
+        [id]
+      );
+      console.log(`Mis à jour ${clientsAssocies.rows[0].count} clients`);
+    }
+
+    // Supprimer le camping
+    const result = await client.query(
+      'DELETE FROM Camping WHERE idcamping = $1',
+      [id]
+    );
+
+    // Valider la transaction
+    await client.query('COMMIT');
+
+    if (result.rowCount > 0) {
+      res.json({ message: 'Camping supprimé avec succès' });
+    } else {
+      res.status(404).json({ error: 'Camping non trouvé' });
+    }
+  } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await client.query('ROLLBACK');
+    console.error('Erreur lors de la suppression du camping :', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
 
 
 

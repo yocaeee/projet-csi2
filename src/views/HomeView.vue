@@ -30,6 +30,30 @@
           <span class="ml-2">Matériel</span>
         </v-btn>
       </v-app-bar>
+      <v-app-bar app color="teal">
+        <v-btn @click="onClickForfait" text>
+          <v-icon>mdi-book</v-icon>
+          <span class="ml-2">Forfait</span>
+        </v-btn>
+      </v-app-bar>
+      <v-app-bar app color="teal">
+        <v-btn @click="onClickLocation" text>
+          <v-icon>mdi-book</v-icon>
+          <span class="ml-2">Location</span>
+        </v-btn>
+      </v-app-bar>
+      <v-app-bar app color="teal">
+        <v-btn @click="onClickCustomer" text>
+          <v-icon>mdi-book</v-icon>
+          <span class="ml-2">Clients</span>
+        </v-btn>
+      </v-app-bar>
+      <v-app-bar app color="teal">
+        <v-btn @click="onClickSettings" text>
+          <v-icon>mdi-book</v-icon>
+          <span class="ml-2">Paramètre</span>
+        </v-btn>
+      </v-app-bar>
     </v-app>
   </template>
   
@@ -51,8 +75,24 @@
     router.push({ name: 'employees' })
   }
 
+  const onClickForfait = () => {
+    router.push({ name: 'forfait' })
+  }
+
+  const onClickLocation = () => {
+    router.push({ name: 'location' })
+  }
+
+  const onClickCustomer = () => {
+    router.push({ name: 'customer' })
+  }
+
   const onClickMateriel = () => {
     router.push({ name: 'materiel' })
+  }
+
+  const onClickSettings = () => {
+    router.push({ name: 'settings' })
   }
 
   </script>

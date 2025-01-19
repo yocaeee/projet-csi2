@@ -14,6 +14,10 @@ import LessonsView from './views/LessonsView.vue'
 import PersonnelView from './views/PersonnelView.vue'
 import CampingView from './views/CampingView.vue'
 import MaterielView from './views/MaterielView.vue'
+import ForfaitView from './views/ForfaitView.vue'
+import LocationView from './views/LocationView.vue'
+import SettingsView from './views/SettingsView.vue'
+import CustomerView from './views/CustomerView.vue'
 
 const routes = [
   { path: "/", component: LogView },
@@ -22,6 +26,10 @@ const routes = [
   { path: "/employees", name: "employees", component: PersonnelView },
   { path: "/campings", name: "campings", component: CampingView },
   { path: "/materiel", name: "materiel", component: MaterielView },
+  { path: "/forfait", name: "forfait", component: ForfaitView },
+  { path: "/location", name: "location", component: LocationView },
+  { path: "/settings", name: "settings", component: SettingsView },
+  { path: "/customer", name: "customer", component: CustomerView },
 ];
 
 const router = createRouter({
