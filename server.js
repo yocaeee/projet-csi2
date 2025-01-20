@@ -601,6 +601,575 @@ app.delete('/api/camping/:id', async (req, res) => {
 });
 
 
+//Recuperer le personnel
+app.get("/api/personnel", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.idUtilisateur, u.nom, u.prenom, u.email, u.numTel,
+        CASE 
+          WHEN a.idAdministrateur IS NOT NULL THEN 'Administrateur'
+          WHEN m.idMoniteur IS NOT NULL THEN 'Moniteur'
+          WHEN p.idProprietaire IS NOT NULL THEN 'Propriétaire'
+          WHEN g.idGarcon IS NOT NULL THEN 'Garçon de Plage'
+          ELSE 'Autre'
+        END AS role
+      FROM Utilisateur u
+      LEFT JOIN Administrateur a ON u.idUtilisateur = a.idAdministrateur
+      LEFT JOIN Moniteur m ON u.idUtilisateur = m.idMoniteur
+      LEFT JOIN Proprietaire p ON u.idUtilisateur = p.idProprietaire
+      LEFT JOIN GarconDePlage g ON u.idUtilisateur = g.idGarcon
+      ORDER BY role;
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Erreur lors de la récupération du personnel :", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+//Pour ajouter un membre de personnel
+app.post("/api/personnel", async (req, res) => {
+  const { nom, prenom, email, numTel, motDePasse, role } = req.body;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Ajouter dans Utilisateur
+    const userResult = await client.query(
+      `INSERT INTO Utilisateur (nom, prenom, email, numTel, motDePasse) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING idUtilisateur`,
+      [nom, prenom, email, numTel, motDePasse]
+    );
+
+    const newUserId = userResult.rows[0].idutilisateur;
+
+    // Ajouter dans la bonne table selon le rôle
+    switch (role) {
+      case "Administrateur":
+        await client.query("INSERT INTO Administrateur (idAdministrateur) VALUES ($1)", [newUserId]);
+        break;
+      case "Moniteur":
+        await client.query("INSERT INTO Moniteur (idMoniteur) VALUES ($1)", [newUserId]);
+        break;
+      case "Propriétaire":
+        await client.query("INSERT INTO Proprietaire (idProprietaire) VALUES ($1)", [newUserId]);
+        break;
+      case "Garçon de Plage":
+        await client.query(
+          `INSERT INTO GarconDePlage (idGarcon, nom, prenom, numTel, email) 
+           VALUES ($1, $2, $3, $4, $5)`,
+          [newUserId, nom, prenom, numTel, email]
+        );
+        break;
+      default:
+        throw new Error("Rôle non valide !");
+    }
+
+    await client.query("COMMIT");
+    res.status(201).json({ success: true, message: "Personnel ajouté avec succès" });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Erreur lors de l'ajout du personnel :", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Pour supprimer un membre du personnel
+app.delete("/api/personnel/:id", async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    console.log(`Tentative de suppression du personnel avec ID: ${id}`);
+
+    // Vérifier si l'utilisateur est Jean Dupont (administrateur principal)
+    if (id === "1") {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ success: false, message: "Suppression interdite : cet utilisateur est l'administrateur principal" });
+    }
+
+    // Vérifier si l'utilisateur existe
+    const checkUser = await client.query("SELECT * FROM Utilisateur WHERE idUtilisateur = $1", [id]);
+    if (checkUser.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ success: false, message: "Personnel non trouvé" });
+    }
+
+    // Vérifier si l'utilisateur est référencé ailleurs
+    const checkReferences = await client.query(`
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT idMoniteur AS id FROM Cours WHERE idMoniteur = $1
+        UNION ALL
+        SELECT idClient AS id FROM InscriptionCours WHERE idClient = $1
+      ) AS ref_check;
+    `, [id]);
+
+    if (parseInt(checkReferences.rows[0].count) > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ success: false, message: "Impossible de supprimer : utilisateur référencé dans une autre table" });
+    }
+
+    // Supprimer d'abord des tables spécifiques
+    await client.query("DELETE FROM Administrateur WHERE idAdministrateur = $1", [id]);
+    await client.query("DELETE FROM Moniteur WHERE idMoniteur = $1", [id]);
+    await client.query("DELETE FROM Proprietaire WHERE idProprietaire = $1", [id]);
+    await client.query("DELETE FROM GarconDePlage WHERE idGarcon = $1", [id]);
+
+    // Supprimer de la table principale Utilisateur
+    const result = await client.query("DELETE FROM Utilisateur WHERE idUtilisateur = $1 RETURNING *", [id]);
+
+    if (result.rowCount > 0) {
+      await client.query("COMMIT");
+      res.json({ success: true, message: "Personnel supprimé avec succès", deletedUser: result.rows[0] });
+    } else {
+      await client.query("ROLLBACK");
+      res.status(404).json({ success: false, message: "Personnel non trouvé" });
+    }
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Erreur lors de la suppression du personnel :", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Ajoutez ces routes après vos autres configurations et routes existantes
+
+// Récupérer tous les clients
+app.get('/api/clientspage', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT Client.*, Camping.nom AS nom_camping 
+      FROM Client 
+      LEFT JOIN Camping ON Client.idCamping = Camping.idCamping 
+      ORDER BY Client.idClient
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la récupération des clients" });
+  }
+});
+
+// Ajouter un nouveau client
+app.post('/api/clients', async (req, res) => {
+  const { nom, prenom, email, numTel, niveau, idCamping } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO Client (nom, prenom, email, numTel, niveau, idCamping) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [nom, prenom, email, numTel, niveau, idCamping]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de l'ajout du client" });
+  }
+});
+
+// Supprimer un client
+app.delete('/api/clients/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM Client WHERE idClient = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Client non trouvé" });
+    }
+    res.json({ message: "Client supprimé avec succès" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la suppression du client" });
+  }
+});
+
+// Route pour récupérer la liste des campings
+app.get('/api/campingsname', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM Camping ORDER BY nom');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la récupération des campings" });
+  }
+});
+
+// Route pour récupérer les forfaits avec les informations du client
+app.get('/api/forfaits', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        Forfait.*, 
+        Client.nom AS nom_client, 
+        Client.prenom AS prenom_client,
+        EXISTS (
+          SELECT 1 
+          FROM Paiement 
+          WHERE Paiement.idClient = Forfait.idClient AND Paiement.montant = Forfait.montantTotal
+        ) AS paiement_effectue
+      FROM Forfait 
+      JOIN Client ON Forfait.idClient = Client.idClient 
+      ORDER BY Forfait.idForfait
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la récupération des forfaits" });
+  }
+});
+
+
+// Route pour supprimer un forfait
+app.delete('/api/forfaits/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Vérifier s'il existe des cours ou paiements liés
+    const checkRelatedRecords = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM InscriptionCours WHERE idClient IN (
+          SELECT idClient FROM Forfait WHERE idForfait = $1
+        )) AS cours_count,
+        (SELECT COUNT(*) FROM Paiement WHERE idClient IN (
+          SELECT idClient FROM Forfait WHERE idForfait = $1
+        )) AS paiement_count
+    `, [id]);
+
+    const { cours_count, paiement_count } = checkRelatedRecords.rows[0];
+
+    if (cours_count > 0 || paiement_count > 0) {
+      return res.status(400).json({ 
+        error: "Impossible de supprimer ce forfait. Des enregistrements sont liés." 
+      });
+    }
+
+    // Supprimer le forfait
+    const result = await pool.query(
+      'DELETE FROM Forfait WHERE idForfait = $1 RETURNING *', 
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Forfait non trouvé" });
+    }
+
+    res.json({ message: "Forfait supprimé avec succès" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la suppression du forfait" });
+  }
+});
+
+// Modification de la route d'ajout de forfait pour sécuriser
+app.post('/api/forfaits', async (req, res) => {
+  const { idClient, nbSeances, prix } = req.body;
+  
+  // Validation des données
+  if (!idClient || !nbSeances || !prix) {
+    return res.status(400).json({ error: "Données invalides" });
+  }
+
+  // Vérification des forfaits autorisés
+  const forfaitOptions = {
+    1: 25,
+    2: 42,
+    5: 100
+  };
+
+  if (!forfaitOptions[nbSeances] || forfaitOptions[nbSeances] !== prix) {
+    return res.status(400).json({ error: "Configuration de forfait invalide" });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO Forfait (idClient, nbSeances, nbSeancesRestantes, prix, remise, montantTotal) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [idClient, nbSeances, nbSeances, prix, 0, prix]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de l'ajout du forfait" });
+  }
+});
+
+
+// Route pour ajouter une facture
+app.post('/api/forfaits', async (req, res) => {
+  const { idClient, nbSeances, prix, remise } = req.body;
+
+  console.log("📥 Requête reçue pour ajouter un forfait :", req.body);
+
+  // Vérification des champs obligatoires
+  if (!idClient || isNaN(idClient)) {
+    return res.status(400).json({ error: "❌ ID Client invalide ou manquant" });
+  }
+  if (!nbSeances || isNaN(nbSeances)) {
+    return res.status(400).json({ error: "❌ Nombre de séances invalide" });
+  }
+  if (!prix || isNaN(prix)) {
+    return res.status(400).json({ error: "❌ Prix invalide" });
+  }
+
+  try {
+    console.log("📡 Envoi de la requête SQL...");
+    const result = await pool.query(
+      `INSERT INTO Forfait (idClient, nbSeances, nbSeancesRestantes, prix, remise, montantTotal) 
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [idClient, nbSeances, nbSeances, prix, remise || 0, prix - (remise || 0)]
+    );
+    console.log("✅ Forfait ajouté :", result.rows[0]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ ERREUR lors de l'ajout du forfait :", err);
+    res.status(500).json({ error: "Erreur serveur lors de l'ajout du forfait", details: err.message });
+  }
+});
+
+
+// Route pour ajouter une facture
+app.post('/api/factures', async (req, res) => {
+  const { montantTotal, dateEmission, tva } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO Facture (montantTotal, dateEmission, tva) VALUES ($1, $2, $3) RETURNING *',
+      [montantTotal, dateEmission, tva]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la création de la facture" });
+  }
+});
+
+// Route pour ajouter un paiement
+app.post('/api/paiements', async (req, res) => {
+  const { montant, mode, idFacture, idClient } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO Paiement (montant, mode, idFacture, idClient) VALUES ($1, $2, $3, $4) RETURNING *',
+      [montant, mode, idFacture, idClient]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la création du paiement" });
+  }
+});
+
+// Route pour récupérer toutes les factures avec les informations du client et du paiement
+app.get('/api/factures', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        f.idFacture, 
+        f.montantTotal, 
+        f.dateEmission, 
+        f.tva,
+        c.nom AS nom_client, 
+        c.prenom AS prenom_client,
+        p.mode AS mode_paiement
+      FROM Facture f
+      JOIN Paiement p ON f.idFacture = p.idFacture
+      JOIN Client c ON p.idClient = c.idClient
+      ORDER BY f.idFacture DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de la récupération des factures" });
+  }
+});
+
+// Récupérer les horaires d'ouverture
+app.get("/api/accueil", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM Accueil ORDER BY idAccueil ASC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des horaires :", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+// Mettre à jour un horaire d'ouverture
+app.put("/api/accueil/:id", async (req, res) => {
+  const { id } = req.params;
+  const { ouvert, dateFermeture, heureOuverture, heureFermeture, adresse } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE Accueil 
+       SET ouvert = $1, dateFermeture = $2, heureOuverture = $3, heureFermeture = $4, adresse = $5
+       WHERE idAccueil = $6`,
+      [ouvert, dateFermeture || null, heureOuverture, heureFermeture, adresse, id]
+    );
+
+    if (result.rowCount > 0) {
+      res.json({ success: true, message: "Horaire mis à jour avec succès !" });
+    } else {
+      res.status(404).json({ success: false, message: "ID non trouvé" });
+    }
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour :", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get("/api/locations", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        l.idLocation, 
+        l.date, 
+        l.heureDebut, 
+        l.duree, 
+        l.montantCaution, 
+        l.etatRetour, 
+        l.remise, 
+        l.cautionRendue, 
+        l.montantTotal, 
+        l.idMateriel,
+        m.etat AS etatMateriel,
+        c.modele AS modeleCatamaran
+      FROM Location l
+      LEFT JOIN Materiel m ON l.idMateriel = m.idMateriel
+      LEFT JOIN Catamaran c ON l.idCatamaran = c.idCatamaran
+      ORDER BY l.date DESC
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Route pour ajouter une location
+// Route pour ajouter une location
+app.post("/api/locations", async (req, res) => {
+  const { 
+    date, 
+    heureDebut, 
+    duree, 
+    montantCaution, 
+    etatRetour, 
+    remise, 
+    cautionRendue, 
+    montantTotal, 
+    idMateriel
+  } = req.body;
+
+  // Vérification des entrées
+  if (!date || !heureDebut || !duree || !montantTotal || !idMateriel || !etatRetour) {
+    return res.status(400).json({ error: "Tous les champs obligatoires doivent être remplis." });
+  }
+
+  try {
+    // Vérifier la disponibilité du matériel
+    const materielCheck = await pool.query(
+      'SELECT disponible FROM Materiel WHERE idMateriel = $1', 
+      [idMateriel]
+    );
+
+    if (!materielCheck.rows[0]?.disponible) {
+      return res.status(400).json({ error: "Le matériel n'est pas disponible" });
+    }
+
+    const query = `
+      INSERT INTO Location (
+        date, heureDebut, duree, montantCaution, etatRetour, remise, cautionRendue, montantTotal, idMateriel
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING idLocation
+    `;
+
+    const values = [
+      date, heureDebut, duree, 
+      montantCaution || 0, etatRetour, remise || 0, 
+      cautionRendue || false, montantTotal, idMateriel
+    ];
+
+    const result = await pool.query(query, values);
+
+    // Marquer le matériel comme indisponible après location
+    await pool.query(
+      'UPDATE Materiel SET disponible = false WHERE idMateriel = $1', 
+      [idMateriel]
+    );
+
+    res.status(201).json({ 
+      success: true, 
+      message: "Location ajoutée avec succès",
+      idLocation: result.rows[0].idlocation 
+    });
+
+  } catch (error) {
+    console.error("Erreur lors de l'ajout de la location :", error);
+    res.status(500).json({ 
+      error: "Erreur serveur lors de l'ajout de la location",
+      details: error.message 
+    });
+  }
+});
+
+// Route pour supprimer une location
+app.delete("/api/locations/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Vérifier si la location existe
+    const locationQuery = await client.query("SELECT idMateriel FROM Location WHERE idLocation = $1", [id]);
+
+    if (locationQuery.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Location non trouvée" });
+    }
+
+    const idMateriel = locationQuery.rows[0].idmateriel;
+
+    // Supprimer la location
+    const deleteResult = await client.query("DELETE FROM Location WHERE idLocation = $1", [id]);
+
+    if (deleteResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Échec de la suppression de la location" });
+    }
+
+    // Mettre à jour la disponibilité du matériel après suppression de la location
+    await client.query("UPDATE Materiel SET disponible = true WHERE idMateriel = $1", [idMateriel]);
+
+    await client.query("COMMIT");
+
+    res.json({ success: true, message: "Location supprimée avec succès" });
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Erreur lors de la suppression de la location:", error);
+    res.status(500).json({ error: "Erreur serveur lors de la suppression de la location", details: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Serveur démarré sur le port ${PORT}`));

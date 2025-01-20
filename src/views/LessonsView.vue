@@ -1,7 +1,15 @@
 <template>
-  <div>
-    <h1>Liste des cours</h1>
-    <v-container>
+  <v-container>
+    <v-card>
+      <v-card-title class="d-flex align-center">
+        <h3>Liste des cours</h3>
+        <v-spacer></v-spacer>
+        <v-btn color="primary" @click="openNewCourseDialog">
+          <v-icon left>mdi-plus</v-icon>
+          Créer un nouveau cours
+        </v-btn>
+      </v-card-title>
+
       <v-data-table
         :items="lessons"
         :headers="headers"
@@ -9,10 +17,7 @@
         item-value="idcours"
         dense
       >
-        <template v-slot:top>
-          <v-toolbar flat>
-          </v-toolbar>
-        </template>
+        <!-- Retirer le slot top -->
         <!-- eslint-disable-next-line vue/valid-v-slot -->
         <template v-slot:item.actions="{ item }">
           <v-btn icon @click="openClientDialog(item)">
@@ -27,16 +32,13 @@
         </template>
         <!-- eslint-disable-next-line vue/valid-v-slot -->
         <template v-slot:item.delete="{ item }">
-          <v-btn icon @click="deleteCourse(item)">
+          <v-btn icon color="red" @click="deleteCourse(item)">
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
       </v-data-table>
-
-      <v-btn color="primary" @click="openNewCourseDialog" class="mt-4">
-        Créer un nouveau cours
-      </v-btn>
-    </v-container>
+    </v-card>
+  </v-container>
 
     <!-- Dialogue pour ajouter un client -->
     <v-dialog v-model="dialogOpen" max-width="500px">
@@ -145,7 +147,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </div>
 </template>
 
 

@@ -150,7 +150,7 @@ const headers = [
   { title: 'État', value: 'etat', align: "center" },
   { title: 'Type', value: 'type', align: "center" },
   { title: 'Détails', align: "center" },
-  { title: 'Supprimer', align: "center" }
+  { title: 'Actions', align: "center" }
 ];
 
 // Options pour les états et types

@@ -18,6 +18,7 @@ import ForfaitView from './views/ForfaitView.vue'
 import LocationView from './views/LocationView.vue'
 import SettingsView from './views/SettingsView.vue'
 import CustomerView from './views/CustomerView.vue'
+import InvoiceView from './views/InvoiceView.vue'
 
 const routes = [
   { path: "/", component: LogView },
@@ -30,6 +31,8 @@ const routes = [
   { path: "/location", name: "location", component: LocationView },
   { path: "/settings", name: "settings", component: SettingsView },
   { path: "/customer", name: "customer", component: CustomerView },
+  { path: "/invoice", name: "invoice", component: InvoiceView },
+
 ];
 
 const router = createRouter({
