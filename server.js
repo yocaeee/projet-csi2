@@ -1,6 +1,7 @@
 const express = require("express");
 const { Pool } = require("pg");
 const cors = require("cors");
+const path = require('path');
 require("dotenv").config();
 
 const app = express();
@@ -15,6 +16,11 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'dist')));
+
+
+
 app.get("/api/lessons", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM cours");
@@ -24,7 +30,6 @@ app.get("/api/lessons", async (req, res) => {
   }
 });
 
-// Route pour récupérer la liste des clients
 app.get("/api/clients", async (req, res) => {
   try {
     const result = await pool.query("SELECT idclient, nom, prenom, niveau FROM client");
@@ -42,8 +47,6 @@ app.post("/api/lessons/:idcours/addClient", async (req, res) => {
 
   try {
     await client.query('BEGIN');
-
-    // Vérifier si le client est déjà inscrit au cours
     const checkInscription = await client.query(
       "SELECT * FROM InscriptionCours WHERE idcours = $1 AND idclient = $2",
       [idcours, idclient]
@@ -54,8 +57,7 @@ app.post("/api/lessons/:idcours/addClient", async (req, res) => {
       return res.status(400).json({ success: false, message: "Le client est déjà inscrit à ce cours" });
     }
 
-    // Vérifier et réserver le matériel requis
-    const materials = ['flotteur', 'voile', 'piedDeMat']; // Types de matériel requis
+    const materials = ['flotteur', 'voile', 'piedDeMat'];
     for (const materialType of materials) {
       const materialCheck = await client.query(
         `INSERT INTO Location (date, heureDebut, duree, montantCaution, etatRetour, remise, cautionRendue, montantTotal, idMateriel)
@@ -72,8 +74,6 @@ app.post("/api/lessons/:idcours/addClient", async (req, res) => {
         return res.status(400).json({ success: false, message: `Pas assez de ${materialType} disponible ou en bon état pour ce cours.` });
       }
     }
-
-    // Incrémenter le nombre de participants
     const result = await client.query(
       "UPDATE Cours SET nbparticipants = nbparticipants + 1 WHERE idcours = $1 RETURNING nbparticipants",
       [idcours]
@@ -84,7 +84,6 @@ app.post("/api/lessons/:idcours/addClient", async (req, res) => {
       return res.status(404).json({ success: false, message: "Cours non trouvé" });
     }
 
-    // Ajouter l'inscription dans la table InscriptionCours
     await client.query(
       "INSERT INTO InscriptionCours (idcours, idclient) VALUES ($1, $2)",
       [idcours, idclient]
@@ -103,10 +102,6 @@ app.post("/api/lessons/:idcours/addClient", async (req, res) => {
 });
 
 
-
-
-
-// Nouvelle route pour récupérer les clients non inscrits à un cours spécifique
 app.get("/api/lessons/:idcours/availableClients", async (req, res) => {
   const { idcours } = req.params;
 
@@ -127,7 +122,7 @@ app.get("/api/lessons/:idcours/availableClients", async (req, res) => {
   }
 });
 
-// Route pour récupérer la liste des moniteurs
+
 app.get("/api/moniteurs", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -141,7 +136,7 @@ app.get("/api/moniteurs", async (req, res) => {
   }
 });
 
-// Créer un nouveau cours
+
 app.post("/api/lessons/create", async (req, res) => {
   const { date, heureDebut, heureFin, nbParticipants, statut, niveau, idMoniteur } = req.body;
 
@@ -152,7 +147,7 @@ app.post("/api/lessons/create", async (req, res) => {
        RETURNING *`,
       [date, heureDebut, heureFin, nbParticipants, statut, niveau, idMoniteur]
     );
-    
+
     const course = result.rows[0];
     course.idMoniteur = course.idmoniteur;
     res.json({ success: true, course: course });
@@ -163,9 +158,6 @@ app.post("/api/lessons/create", async (req, res) => {
 });
 
 
-
-
-// Authentification
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -174,7 +166,7 @@ app.post("/api/login", async (req, res) => {
       "SELECT * FROM Utilisateur WHERE email = $1 AND motDePasse = $2",
       [email, password]
     );
-    
+
     if (result.rows.length === 1) {
       res.json({ success: true, message: "Connexion réussie" });
     } else {
@@ -193,11 +185,8 @@ app.delete("/api/lessons/:idcours", async (req, res) => {
 
   try {
     await client.query('BEGIN');
-
-    // Supprimer d'abord les inscriptions
     await client.query("DELETE FROM InscriptionCours WHERE idCours = $1", [idcours]);
 
-    // Ensuite, supprimer le cours
     const result = await client.query("DELETE FROM Cours WHERE idCours = $1", [idcours]);
 
     if (result.rowCount > 0) {
@@ -241,11 +230,8 @@ app.delete("/api/lessons/:idcours/removeClient/:idclient", async (req, res) => {
 
   try {
     await client.query('BEGIN');
-
-    // Supprimer l'inscription
     await client.query("DELETE FROM InscriptionCours WHERE idCours = $1 AND idClient = $2", [idcours, idclient]);
 
-    // Décrémenter le nombre de participants
     const result = await client.query(
       "UPDATE Cours SET nbParticipants = nbParticipants - 1 WHERE idCours = $1 RETURNING nbParticipants",
       [idcours]
@@ -307,13 +293,9 @@ LEFT JOIN PiedDeMat pm ON m.idMateriel = pm.idMateriel
   }
 });
 
-
-
-
-// Route pour mettre à jour l'état du matériel
 app.put("/api/materiel/:id", async (req, res) => {
   const { id } = req.params;
-  const { etat } = req.body; // Changer 'disponible' en 'etat'
+  const { etat } = req.body;
 
   try {
     const result = await pool.query(
@@ -332,24 +314,20 @@ app.put("/api/materiel/:id", async (req, res) => {
   }
 });
 
-// Route pour ajouter un nouveau matériel
 app.post("/api/materiel", async (req, res) => {
-  const { 
-    type, 
-    quantite, 
-    disponible, 
-    tarifhoraire, 
-    tarifheuresupp, 
-    etat 
+  const {
+    type,
+    quantite,
+    disponible,
+    tarifhoraire,
+    tarifheuresupp,
+    etat
   } = req.body;
 
   const client = await pool.connect();
 
   try {
-    // Démarrer une transaction
     await client.query('BEGIN');
-
-    // Insérer dans Materiel
     const materielQuery = `
       INSERT INTO Materiel 
       (quantite, disponible, tarifHoraire, tarifHeureSupp, etat) 
@@ -357,90 +335,83 @@ app.post("/api/materiel", async (req, res) => {
       RETURNING idMateriel
     `;
     const materielResult = await client.query(materielQuery, [
-      quantite, 
-      disponible, 
-      tarifhoraire, 
-      tarifheuresupp, 
+      quantite,
+      disponible,
+      tarifhoraire,
+      tarifheuresupp,
       etat
     ]);
 
     const newMaterielId = materielResult.rows[0].idmateriel;
 
-    // Insérer dans la table spécifique selon le type
-    switch(type) {
+    switch (type) {
       case 'Flotteur':
         await client.query(
-          'INSERT INTO Flotteur (idMateriel, volume) VALUES ($1, $2)', 
+          'INSERT INTO Flotteur (idMateriel, volume) VALUES ($1, $2)',
           [newMaterielId, req.body.volume || 0]
         );
         break;
       case 'Voile':
         await client.query(
-          'INSERT INTO Voile (idMateriel, surface) VALUES ($1, $2)', 
+          'INSERT INTO Voile (idMateriel, surface) VALUES ($1, $2)',
           [newMaterielId, req.body.surface || 0]
         );
         break;
       case 'Paddle':
         await client.query(
-          'INSERT INTO Paddle (idMateriel) VALUES ($1)', 
+          'INSERT INTO Paddle (idMateriel) VALUES ($1)',
           [newMaterielId]
         );
         break;
       case 'Pedalo':
         await client.query(
-          'INSERT INTO Pedalo (idMateriel, tarifDemiHeure) VALUES ($1, $2)', 
+          'INSERT INTO Pedalo (idMateriel, tarifDemiHeure) VALUES ($1, $2)',
           [newMaterielId, req.body.tarifDemiHeure || 0]
         );
         break;
       case 'Catamaran':
         await client.query(
-          'INSERT INTO Catamaran (idMateriel, modele) VALUES ($1, $2)', 
+          'INSERT INTO Catamaran (idMateriel, modele) VALUES ($1, $2)',
           [newMaterielId, req.body.modele || 'Non spécifié']
         );
         break;
       case 'Hors-Bord':
         await client.query(
-          'INSERT INTO HorsBord (idMateriel) VALUES ($1)', 
+          'INSERT INTO HorsBord (idMateriel) VALUES ($1)',
           [newMaterielId]
         );
         break;
       default:
         throw new Error('Type de matériel non reconnu');
     }
-
-    // Valider la transaction
     await client.query('COMMIT');
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: "Matériel ajouté avec succès",
-      idMateriel: newMaterielId 
+      idMateriel: newMaterielId
     });
 
   } catch (error) {
-    // Annuler la transaction en cas d'erreur
     await client.query('ROLLBACK');
     console.error("Erreur lors de l'ajout du matériel :", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Erreur lors de l'ajout du matériel",
-      error: error.message 
+      error: error.message
     });
   } finally {
     client.release();
   }
 });
 
-// Route pour supprimer un matériel
+
 app.delete("/api/materiel/:id", async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
 
   try {
-    // Démarrer une transaction
     await client.query('BEGIN');
-
-    // Supprimer des tables spécifiques
     await client.query('DELETE FROM Flotteur WHERE idMateriel = $1', [id]);
     await client.query('DELETE FROM Voile WHERE idMateriel = $1', [id]);
     await client.query('DELETE FROM Paddle WHERE idMateriel = $1', [id]);
@@ -449,42 +420,38 @@ app.delete("/api/materiel/:id", async (req, res) => {
     await client.query('DELETE FROM HorsBord WHERE idMateriel = $1', [id]);
     await client.query('DELETE FROM PiedDeMat WHERE idMateriel = $1', [id]);
 
-    // Supprimer de la table Materiel
     const result = await client.query(
-      'DELETE FROM Materiel WHERE idMateriel = $1', 
+      'DELETE FROM Materiel WHERE idMateriel = $1',
       [id]
     );
 
-    // Valider la transaction
     await client.query('COMMIT');
 
     if (result.rowCount > 0) {
-      res.json({ 
-        success: true, 
-        message: "Matériel supprimé avec succès" 
+      res.json({
+        success: true,
+        message: "Matériel supprimé avec succès"
       });
     } else {
-      res.status(404).json({ 
-        success: false, 
-        message: "Matériel non trouvé" 
+      res.status(404).json({
+        success: false,
+        message: "Matériel non trouvé"
       });
     }
 
   } catch (error) {
-    // Annuler la transaction en cas d'erreur
     await client.query('ROLLBACK');
     console.error("Erreur lors de la suppression du matériel :", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Erreur lors de la suppression du matériel",
-      error: error.message 
+      error: error.message
     });
   } finally {
     client.release();
   }
 });
 
-// Route pour mettre à jour l'état
 app.put("/api/materiel/:id/etat", async (req, res) => {
   const { id } = req.params;
   const { etat } = req.body;
@@ -496,27 +463,26 @@ app.put("/api/materiel/:id/etat", async (req, res) => {
     );
 
     if (result.rowCount > 0) {
-      res.json({ 
-        success: true, 
-        message: "État mis à jour avec succès" 
+      res.json({
+        success: true,
+        message: "État mis à jour avec succès"
       });
     } else {
-      res.status(404).json({ 
-        success: false, 
-        message: "Matériel non trouvé" 
+      res.status(404).json({
+        success: false,
+        message: "Matériel non trouvé"
       });
     }
   } catch (error) {
     console.error("Erreur lors de la mise à jour de l'état :", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Erreur lors de la mise à jour de l'état",
-      error: error.message 
+      error: error.message
     });
   }
 });
 
-// Route pour récupérer tous les campings
 app.get('/api/camping', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -534,7 +500,6 @@ app.get('/api/camping', async (req, res) => {
   }
 });
 
-// Route pour ajouter un camping
 app.post('/api/camping', async (req, res) => {
   const { nom, partenaire } = req.body;
 
@@ -552,37 +517,30 @@ app.post('/api/camping', async (req, res) => {
   }
 });
 
-// Route pour supprimer un camping
 app.delete('/api/camping/:id', async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
 
   try {
-    // Début de la transaction
     await client.query('BEGIN');
-
-    // Vérifier s'il y a des clients associés
     const clientsAssocies = await client.query(
-      'SELECT COUNT(*) FROM Client WHERE idcamping = $1', 
+      'SELECT COUNT(*) FROM Client WHERE idcamping = $1',
       [id]
     );
 
     if (parseInt(clientsAssocies.rows[0].count) > 0) {
-      // Mettre à NULL les références de camping dans la table Client
       await client.query(
-        'UPDATE Client SET idcamping = NULL WHERE idcamping = $1', 
+        'UPDATE Client SET idcamping = NULL WHERE idcamping = $1',
         [id]
       );
       console.log(`Mis à jour ${clientsAssocies.rows[0].count} clients`);
     }
 
-    // Supprimer le camping
     const result = await client.query(
       'DELETE FROM Camping WHERE idcamping = $1',
       [id]
     );
 
-    // Valider la transaction
     await client.query('COMMIT');
 
     if (result.rowCount > 0) {
@@ -591,7 +549,6 @@ app.delete('/api/camping/:id', async (req, res) => {
       res.status(404).json({ error: 'Camping non trouvé' });
     }
   } catch (error) {
-    // Annuler la transaction en cas d'erreur
     await client.query('ROLLBACK');
     console.error('Erreur lors de la suppression du camping :', error);
     res.status(500).json({ error: error.message });
@@ -600,8 +557,6 @@ app.delete('/api/camping/:id', async (req, res) => {
   }
 });
 
-
-//Recuperer le personnel
 app.get("/api/personnel", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -628,15 +583,13 @@ app.get("/api/personnel", async (req, res) => {
   }
 });
 
-//Pour ajouter un membre de personnel
+
 app.post("/api/personnel", async (req, res) => {
   const { nom, prenom, email, numTel, motDePasse, role } = req.body;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-
-    // Ajouter dans Utilisateur
     const userResult = await client.query(
       `INSERT INTO Utilisateur (nom, prenom, email, numTel, motDePasse) 
        VALUES ($1, $2, $3, $4, $5) RETURNING idUtilisateur`,
@@ -645,7 +598,6 @@ app.post("/api/personnel", async (req, res) => {
 
     const newUserId = userResult.rows[0].idutilisateur;
 
-    // Ajouter dans la bonne table selon le rôle
     switch (role) {
       case "Administrateur":
         await client.query("INSERT INTO Administrateur (idAdministrateur) VALUES ($1)", [newUserId]);
@@ -678,7 +630,6 @@ app.post("/api/personnel", async (req, res) => {
   }
 });
 
-// Pour supprimer un membre du personnel
 app.delete("/api/personnel/:id", async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
@@ -688,20 +639,17 @@ app.delete("/api/personnel/:id", async (req, res) => {
 
     console.log(`Tentative de suppression du personnel avec ID: ${id}`);
 
-    // Vérifier si l'utilisateur est Jean Dupont (administrateur principal)
     if (id === "1") {
       await client.query("ROLLBACK");
       return res.status(403).json({ success: false, message: "Suppression interdite : cet utilisateur est l'administrateur principal" });
     }
 
-    // Vérifier si l'utilisateur existe
     const checkUser = await client.query("SELECT * FROM Utilisateur WHERE idUtilisateur = $1", [id]);
     if (checkUser.rowCount === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Personnel non trouvé" });
     }
 
-    // Vérifier si l'utilisateur est référencé ailleurs
     const checkReferences = await client.query(`
       SELECT COUNT(*) AS count
       FROM (
@@ -716,13 +664,11 @@ app.delete("/api/personnel/:id", async (req, res) => {
       return res.status(400).json({ success: false, message: "Impossible de supprimer : utilisateur référencé dans une autre table" });
     }
 
-    // Supprimer d'abord des tables spécifiques
     await client.query("DELETE FROM Administrateur WHERE idAdministrateur = $1", [id]);
     await client.query("DELETE FROM Moniteur WHERE idMoniteur = $1", [id]);
     await client.query("DELETE FROM Proprietaire WHERE idProprietaire = $1", [id]);
     await client.query("DELETE FROM GarconDePlage WHERE idGarcon = $1", [id]);
 
-    // Supprimer de la table principale Utilisateur
     const result = await client.query("DELETE FROM Utilisateur WHERE idUtilisateur = $1 RETURNING *", [id]);
 
     if (result.rowCount > 0) {
@@ -741,9 +687,7 @@ app.delete("/api/personnel/:id", async (req, res) => {
   }
 });
 
-// Ajoutez ces routes après vos autres configurations et routes existantes
 
-// Récupérer tous les clients
 app.get('/api/clientspage', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -759,7 +703,6 @@ app.get('/api/clientspage', async (req, res) => {
   }
 });
 
-// Ajouter un nouveau client
 app.post('/api/clients', async (req, res) => {
   const { nom, prenom, email, numTel, niveau, idCamping } = req.body;
   try {
@@ -774,7 +717,7 @@ app.post('/api/clients', async (req, res) => {
   }
 });
 
-// Supprimer un client
+
 app.delete('/api/clients/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -789,7 +732,7 @@ app.delete('/api/clients/:id', async (req, res) => {
   }
 });
 
-// Route pour récupérer la liste des campings
+
 app.get('/api/campingsname', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM Camping ORDER BY nom');
@@ -800,7 +743,7 @@ app.get('/api/campingsname', async (req, res) => {
   }
 });
 
-// Route pour récupérer les forfaits avec les informations du client
+
 app.get('/api/forfaits', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -825,7 +768,6 @@ app.get('/api/forfaits', async (req, res) => {
 });
 
 
-// Route pour supprimer un forfait
 app.delete('/api/forfaits/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -843,14 +785,14 @@ app.delete('/api/forfaits/:id', async (req, res) => {
     const { cours_count, paiement_count } = checkRelatedRecords.rows[0];
 
     if (cours_count > 0 || paiement_count > 0) {
-      return res.status(400).json({ 
-        error: "Impossible de supprimer ce forfait. Des enregistrements sont liés." 
+      return res.status(400).json({
+        error: "Impossible de supprimer ce forfait. Des enregistrements sont liés."
       });
     }
 
-    // Supprimer le forfait
+
     const result = await pool.query(
-      'DELETE FROM Forfait WHERE idForfait = $1 RETURNING *', 
+      'DELETE FROM Forfait WHERE idForfait = $1 RETURNING *',
       [id]
     );
 
@@ -865,16 +807,12 @@ app.delete('/api/forfaits/:id', async (req, res) => {
   }
 });
 
-// Modification de la route d'ajout de forfait pour sécuriser
 app.post('/api/forfaits', async (req, res) => {
   const { idClient, nbSeances, prix } = req.body;
-  
-  // Validation des données
   if (!idClient || !nbSeances || !prix) {
     return res.status(400).json({ error: "Données invalides" });
   }
 
-  // Vérification des forfaits autorisés
   const forfaitOptions = {
     1: 25,
     2: 42,
@@ -898,21 +836,19 @@ app.post('/api/forfaits', async (req, res) => {
 });
 
 
-// Route pour ajouter une facture
 app.post('/api/forfaits', async (req, res) => {
   const { idClient, nbSeances, prix, remise } = req.body;
 
   console.log("📥 Requête reçue pour ajouter un forfait :", req.body);
 
-  // Vérification des champs obligatoires
   if (!idClient || isNaN(idClient)) {
-    return res.status(400).json({ error: "❌ ID Client invalide ou manquant" });
+    return res.status(400).json({ error: "ID Client invalide ou manquant" });
   }
   if (!nbSeances || isNaN(nbSeances)) {
-    return res.status(400).json({ error: "❌ Nombre de séances invalide" });
+    return res.status(400).json({ error: "Nombre de séances invalide" });
   }
   if (!prix || isNaN(prix)) {
-    return res.status(400).json({ error: "❌ Prix invalide" });
+    return res.status(400).json({ error: "Prix invalide" });
   }
 
   try {
@@ -922,17 +858,16 @@ app.post('/api/forfaits', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [idClient, nbSeances, nbSeances, prix, remise || 0, prix - (remise || 0)]
     );
-    console.log("✅ Forfait ajouté :", result.rows[0]);
+    console.log("Forfait ajouté :", result.rows[0]);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error("❌ ERREUR lors de l'ajout du forfait :", err);
+    console.error("ERREUR lors de l'ajout du forfait :", err);
     res.status(500).json({ error: "Erreur serveur lors de l'ajout du forfait", details: err.message });
   }
 });
 
 
-// Route pour ajouter une facture
 app.post('/api/factures', async (req, res) => {
   const { montantTotal, dateEmission, tva } = req.body;
   try {
@@ -947,7 +882,7 @@ app.post('/api/factures', async (req, res) => {
   }
 });
 
-// Route pour ajouter un paiement
+
 app.post('/api/paiements', async (req, res) => {
   const { montant, mode, idFacture, idClient } = req.body;
   try {
@@ -962,7 +897,7 @@ app.post('/api/paiements', async (req, res) => {
   }
 });
 
-// Route pour récupérer toutes les factures avec les informations du client et du paiement
+
 app.get('/api/factures', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -986,7 +921,7 @@ app.get('/api/factures', async (req, res) => {
   }
 });
 
-// Récupérer les horaires d'ouverture
+
 app.get("/api/accueil", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM Accueil ORDER BY idAccueil ASC");
@@ -998,8 +933,6 @@ app.get("/api/accueil", async (req, res) => {
 });
 
 
-
-// Mettre à jour un horaire d'ouverture
 app.put("/api/accueil/:id", async (req, res) => {
   const { id } = req.params;
   const { ouvert, dateFermeture, heureOuverture, heureFermeture, adresse } = req.body;
@@ -1051,30 +984,27 @@ app.get("/api/locations", async (req, res) => {
   }
 });
 
-// Route pour ajouter une location
-// Route pour ajouter une location
+
 app.post("/api/locations", async (req, res) => {
-  const { 
-    date, 
-    heureDebut, 
-    duree, 
-    montantCaution, 
-    etatRetour, 
-    remise, 
-    cautionRendue, 
-    montantTotal, 
+  const {
+    date,
+    heureDebut,
+    duree,
+    montantCaution,
+    etatRetour,
+    remise,
+    cautionRendue,
+    montantTotal,
     idMateriel
   } = req.body;
 
-  // Vérification des entrées
   if (!date || !heureDebut || !duree || !montantTotal || !idMateriel || !etatRetour) {
     return res.status(400).json({ error: "Tous les champs obligatoires doivent être remplis." });
   }
 
   try {
-    // Vérifier la disponibilité du matériel
     const materielCheck = await pool.query(
-      'SELECT disponible FROM Materiel WHERE idMateriel = $1', 
+      'SELECT disponible FROM Materiel WHERE idMateriel = $1',
       [idMateriel]
     );
 
@@ -1090,61 +1020,52 @@ app.post("/api/locations", async (req, res) => {
     `;
 
     const values = [
-      date, heureDebut, duree, 
-      montantCaution || 0, etatRetour, remise || 0, 
+      date, heureDebut, duree,
+      montantCaution || 0, etatRetour, remise || 0,
       cautionRendue || false, montantTotal, idMateriel
     ];
 
     const result = await pool.query(query, values);
 
-    // Marquer le matériel comme indisponible après location
     await pool.query(
-      'UPDATE Materiel SET disponible = false WHERE idMateriel = $1', 
+      'UPDATE Materiel SET disponible = false WHERE idMateriel = $1',
       [idMateriel]
     );
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: "Location ajoutée avec succès",
-      idLocation: result.rows[0].idlocation 
+      idLocation: result.rows[0].idlocation
     });
 
   } catch (error) {
     console.error("Erreur lors de l'ajout de la location :", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Erreur serveur lors de l'ajout de la location",
-      details: error.message 
+      details: error.message
     });
   }
 });
 
-// Route pour supprimer une location
 app.delete("/api/locations/:id", async (req, res) => {
   const { id } = req.params;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-
-    // Vérifier si la location existe
     const locationQuery = await client.query("SELECT idMateriel FROM Location WHERE idLocation = $1", [id]);
 
     if (locationQuery.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Location non trouvée" });
     }
-
     const idMateriel = locationQuery.rows[0].idmateriel;
-
-    // Supprimer la location
     const deleteResult = await client.query("DELETE FROM Location WHERE idLocation = $1", [id]);
 
     if (deleteResult.rowCount === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Échec de la suppression de la location" });
     }
-
-    // Mettre à jour la disponibilité du matériel après suppression de la location
     await client.query("UPDATE Materiel SET disponible = true WHERE idMateriel = $1", [idMateriel]);
 
     await client.query("COMMIT");
@@ -1159,16 +1080,6 @@ app.delete("/api/locations/:id", async (req, res) => {
     client.release();
   }
 });
-
-
-
-
-
-
-
-
-
-
 
 
 const PORT = process.env.PORT || 5000;

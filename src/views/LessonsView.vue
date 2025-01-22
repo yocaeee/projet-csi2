@@ -10,14 +10,7 @@
         </v-btn>
       </v-card-title>
 
-      <v-data-table
-        :items="lessons"
-        :headers="headers"
-        class="elevation-1"
-        item-value="idcours"
-        dense
-      >
-        <!-- Retirer le slot top -->
+      <v-data-table :items="lessons" :headers="headers" class="elevation-1" item-value="idcours" dense>
         <!-- eslint-disable-next-line vue/valid-v-slot -->
         <template v-slot:item.actions="{ item }">
           <v-btn icon @click="openClientDialog(item)">
@@ -39,114 +32,93 @@
       </v-data-table>
     </v-card>
   </v-container>
+  <v-dialog v-model="dialogOpen" max-width="500px">
+    <v-card>
+      <v-card-title>Ajouter un client au cours</v-card-title>
+      <v-card-text>
+        <v-tabs v-model="activeTab">
+          <v-tab value="select">Sélectionner un client existant</v-tab>
+          <v-tab value="create">Créer un nouveau client</v-tab>
+        </v-tabs>
 
-    <!-- Dialogue pour ajouter un client -->
-    <v-dialog v-model="dialogOpen" max-width="500px">
-      <v-card>
-        <v-card-title>Ajouter un client au cours</v-card-title>
-        <v-card-text>
-          <v-tabs v-model="activeTab">
-            <v-tab value="select">Sélectionner un client existant</v-tab>
-            <v-tab value="create">Créer un nouveau client</v-tab>
-          </v-tabs>
+        <v-window v-model="activeTab">
+          <v-window-item value="select">
+            <v-select v-model="selectedClient" :items="clients" item-title="fullName" item-value="idclient"
+              label="Sélectionner un client" return-object></v-select>
+          </v-window-item>
 
-          <v-window v-model="activeTab">
-            <v-window-item value="select">
-              <v-select
-                v-model="selectedClient"
-                :items="clients"
-                item-title="fullName"
-                item-value="idclient"
-                label="Sélectionner un client"
-                return-object
-              ></v-select>
-            </v-window-item>
+          <v-window-item value="create">
+            <v-form @submit.prevent="createNewClient">
+              <v-text-field v-model="newClient.nom" label="Nom" required></v-text-field>
+              <v-text-field v-model="newClient.prenom" label="Prénom" required></v-text-field>
+              <v-text-field v-model="newClient.numtel" label="Numéro de téléphone" required></v-text-field>
+              <v-text-field v-model="newClient.email" label="Email" required></v-text-field>
+              <v-select v-model="newClient.niveau" :items="['débutant', 'non_débutant']" label="Niveau"
+                required></v-select>
+            </v-form>
+          </v-window-item>
+        </v-window>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="blue darken-1" text @click="closeDialog">Annuler</v-btn>
+        <v-btn color="blue darken-1" text
+          @click="activeTab === 'select' ? addSelectedClientToCourse() : createNewClient()">
+          {{ activeTab === 'select' ? 'Ajouter' : 'Créer et Ajouter' }}
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
-            <v-window-item value="create">
-              <v-form @submit.prevent="createNewClient">
-                <v-text-field v-model="newClient.nom" label="Nom" required></v-text-field>
-                <v-text-field v-model="newClient.prenom" label="Prénom" required></v-text-field>
-                <v-text-field v-model="newClient.numtel" label="Numéro de téléphone" required></v-text-field>
-                <v-text-field v-model="newClient.email" label="Email" required></v-text-field>
-                <v-select
-                  v-model="newClient.niveau"
-                  :items="['débutant', 'non_débutant']"
-                  label="Niveau"
-                  required
-                ></v-select>
-              </v-form>
-            </v-window-item>
-          </v-window>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue darken-1" text @click="closeDialog">Annuler</v-btn>
-          <v-btn color="blue darken-1" text @click="activeTab === 'select' ? addSelectedClientToCourse() : createNewClient()">
-            {{ activeTab === 'select' ? 'Ajouter' : 'Créer et Ajouter' }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+  <v-dialog v-model="removeClientDialogOpen" max-width="500px">
+    <v-card>
+      <v-card-title>Supprimer un client du cours</v-card-title>
+      <v-card-text>
+        <h3>Clients inscrits</h3>
+        <v-list>
+          <v-list-item v-for="client in enrolledClients" :key="client.idclient">
+            <v-list-item-content>
+              {{ client.prenom }} {{ client.nom }} - Niveau: {{ client.niveau }}
+            </v-list-item-content>
+            <v-list-item-action>
+              <v-btn icon @click="removeClientFromCourse(client)">
+                <v-icon>mdi-delete</v-icon>
+              </v-btn>
+            </v-list-item-action>
+          </v-list-item>
+        </v-list>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="blue darken-1" text @click="closeRemoveClientDialog">Fermer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
-    <!-- Nouveau dialogue pour supprimer un client -->
-    <v-dialog v-model="removeClientDialogOpen" max-width="500px">
-      <v-card>
-        <v-card-title>Supprimer un client du cours</v-card-title>
-        <v-card-text>
-          <h3>Clients inscrits</h3>
-          <v-list>
-            <v-list-item v-for="client in enrolledClients" :key="client.idclient">
-              <v-list-item-content>
-                {{ client.prenom }} {{ client.nom }} - Niveau: {{ client.niveau }}
-              </v-list-item-content>
-              <v-list-item-action>
-                <v-btn icon @click="removeClientFromCourse(client)">
-                  <v-icon>mdi-delete</v-icon> 
-                </v-btn> 
-              </v-list-item-action> 
-            </v-list-item> 
-          </v-list> 
-        </v-card-text> 
-        <v-card-actions> 
-          <v-spacer></v-spacer> 
-          <v-btn color="blue darken-1" text @click="closeRemoveClientDialog">Fermer</v-btn> 
-        </v-card-actions> 
-      </v-card> 
-    </v-dialog>
+  <v-dialog v-model="newCourseDialogOpen" max-width="500px">
+    <v-card>
+      <v-card-title>Créer un nouveau cours</v-card-title>
+      <v-card-text>
+        <v-form @submit.prevent="createNewCourse">
+          <v-date-picker v-model="newCourse.date" label="Date" required></v-date-picker>
 
-    <v-dialog v-model="newCourseDialogOpen" max-width="500px">
-      <v-card>
-        <v-card-title>Créer un nouveau cours</v-card-title>
-        <v-card-text>
-          <v-form @submit.prevent="createNewCourse">
-            <v-date-picker
-              v-model="newCourse.date"
-              label="Date"
-              required
-            ></v-date-picker>
-
-            <v-text-field v-model="newCourse.heureDebut" label="Heure de début (HH:MM)" required></v-text-field>
-            <v-text-field v-model="newCourse.heureFin" label="Heure de fin (HH:MM)" required></v-text-field>
-            <v-text-field v-model.number="newCourse.nbParticipants" label="Nombre de participants" type="number" required></v-text-field>
-            <v-select v-model="newCourse.statut" :items="['prévu', 'proposé']" label="Statut" required></v-select>
-            <v-select v-model="newCourse.niveau" :items="['débutant', 'non_débutant']" label="Niveau" required></v-select>
-            <v-select
-              v-model="newCourse.idMoniteur"
-              :items="moniteurs"
-              item-title="nom"
-              item-value="idMoniteur"
-              label="Moniteur"
-              required
-            ></v-select>
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="blue darken-1" text @click="closeNewCourseDialog">Annuler</v-btn>
-          <v-btn color="blue darken-1" text @click="createNewCourse">Créer</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+          <v-text-field v-model="newCourse.heureDebut" label="Heure de début (HH:MM)" required></v-text-field>
+          <v-text-field v-model="newCourse.heureFin" label="Heure de fin (HH:MM)" required></v-text-field>
+          <v-text-field v-model.number="newCourse.nbParticipants" label="Nombre de participants" type="number"
+            required></v-text-field>
+          <v-select v-model="newCourse.statut" :items="['prévu', 'proposé']" label="Statut" required></v-select>
+          <v-select v-model="newCourse.niveau" :items="['débutant', 'non_débutant']" label="Niveau" required></v-select>
+          <v-select v-model="newCourse.idMoniteur" :items="moniteurs" item-title="nom" item-value="idMoniteur"
+            label="Moniteur" required></v-select>
+        </v-form>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="blue darken-1" text @click="closeNewCourseDialog">Annuler</v-btn>
+        <v-btn color="blue darken-1" text @click="createNewCourse">Créer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 
@@ -213,7 +185,6 @@ const loadClients = async () => {
       fullName: `${client.prenom} ${client.nom} - Niveau: ${client.niveau}`
     }));
   } catch (error) {
-    console.error("Erreur lors de la récupération des clients disponibles :", error);
   }
 };
 
@@ -246,7 +217,6 @@ const addSelectedClientToCourse = async () => {
       }
       closeDialog();
     } catch (error) {
-      console.error("Erreur lors de l'ajout du client au cours :", error);
       alert("Erreur lors de l'ajout du client au cours. Veuillez réessayer.");
     }
   }
@@ -261,12 +231,11 @@ const createNewClient = async () => {
         ...createdClient,
         fullName: `${createdClient.prenom} ${createdClient.nom} - Tél: ${createdClient.numtel} - Email: ${createdClient.email} - Niveau: ${createdClient.niveau}`
       });
-      
+
       selectedClient.value = createdClient;
       await addSelectedClientToCourse();
     }
   } catch (error) {
-    console.error("Erreur lors de la création du client :", error);
     alert("Erreur lors de la création du client. Veuillez réessayer.");
   }
 };
@@ -299,7 +268,6 @@ const loadMoniteurs = async () => {
       nom: `${moniteur.prenom} ${moniteur.nom}`
     }));
   } catch (error) {
-    console.error("Erreur lors de la récupération des moniteurs :", error);
   }
 };
 
@@ -307,11 +275,11 @@ const loadMoniteurs = async () => {
 const createNewCourse = async () => {
   try {
     const formattedCourse = {
-  ...newCourse.value,
-  date: newCourse.value.date instanceof Date ? newCourse.value.date.toISOString().split('T')[0] : null,
-  nbParticipants: parseInt(newCourse.value.nbParticipants),
-  idMoniteur: parseInt(newCourse.value.idMoniteur)
-};
+      ...newCourse.value,
+      date: newCourse.value.date instanceof Date ? newCourse.value.date.toISOString().split('T')[0] : null,
+      nbParticipants: parseInt(newCourse.value.nbParticipants),
+      idMoniteur: parseInt(newCourse.value.idMoniteur)
+    };
 
     const response = await axios.post("http://localhost:5000/api/lessons/create", formattedCourse);
     if (response.data.success) {
@@ -320,7 +288,6 @@ const createNewCourse = async () => {
       alert("Cours créé avec succès.");
     }
   } catch (error) {
-    console.error("Erreur lors de la création du cours :", error);
     alert("Erreur lors de la création du cours. Veuillez réessayer.");
   }
 };
@@ -334,7 +301,6 @@ const deleteCourse = async (course) => {
         alert("Cours supprimé avec succès.");
       }
     } catch (error) {
-      console.error("Erreur lors de la suppression du cours :", error);
       alert("Erreur lors de la suppression du cours. Veuillez réessayer.");
     }
   }
@@ -358,7 +324,6 @@ const loadEnrolledClients = async () => {
     const response = await axios.get(`http://localhost:5000/api/lessons/${currentCourse.value.idcours}/enrolledClients`);
     enrolledClients.value = response.data;
   } catch (error) {
-    console.error("Erreur lors de la récupération des clients inscrits :", error);
   }
 };
 
@@ -372,7 +337,6 @@ const removeClientFromCourse = async (client) => {
         alert("Client retiré du cours avec succès.");
       }
     } catch (error) {
-      console.error("Erreur lors de la suppression du client du cours :", error);
       alert("Erreur lors de la suppression du client du cours. Veuillez réessayer.");
     }
   }
@@ -387,10 +351,8 @@ onMounted(async () => {
       date: formatDateToFrench(lesson.date),
     }));
   } catch (error) {
-    console.error("Erreur lors de la récupération des cours :", error);
   }
 });
 </script>
 
-<style>
-</style>
+<style></style>

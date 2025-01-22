@@ -7,31 +7,15 @@
 
       <v-card-text>
         <v-form @submit.prevent="onLogin">
-          <v-text-field
-            v-model="email"
-            label="Email"
-            prepend-icon="mdi-account"
-            outlined
-            required
-          ></v-text-field>
+          <v-text-field v-model="email" label="Email" prepend-icon="mdi-account" outlined required></v-text-field>
 
-          <v-text-field
-            v-model="password"
-            label="Mot de passe"
-            type="password"
-            prepend-icon="mdi-lock"
-            outlined
-            required
-          ></v-text-field>
+          <v-text-field v-model="password" label="Mot de passe" type="password" prepend-icon="mdi-lock" outlined
+            required></v-text-field>
         </v-form>
       </v-card-text>
 
       <v-card-actions>
-        <v-btn
-          color="blue"
-          @click="onLogin"
-          block
-        >
+        <v-btn color="blue" @click="onLogin" block>
           Connexion
         </v-btn>
       </v-card-actions>
@@ -56,7 +40,7 @@ const onLogin = async () => {
         email: email.value,
         password: password.value
       })
-      
+
       if (response.data.success) {
         router.push({ name: 'home' })
       } else {

@@ -48,63 +48,91 @@
         <v-row>
           <v-col>
             <v-sheet class="pa-4">
-              <v-typography tag="h1" class="text-h4 font-weight-bold mb-4">
-                CLUB NAUTIQUE DE JARVILLE SUR MER
-              </v-typography>
+              <h1 class="club-title text-center mb-6">
+                Club Nautique de Jarville sur Mer
+              </h1>
+              <div class="image-container">
+                <img src="http://localhost:5000/images/image2.png" alt="Image 1" class="my-image">
+              </div>
             </v-sheet>
           </v-col>
         </v-row>
       </v-container>
     </v-main>
+
+    <v-footer app color="teal" class="white--text">
+      <v-container class="d-flex justify-space-between">
+        <span><strong>Propriétaire :</strong> Lucas PETIT</span>
+        <span><strong>Email :</strong> lucas.petit@mail.com</span>
+        <span><strong>Téléphone :</strong> 06 56 74 38 99</span>
+      </v-container>
+    </v-footer>
+
   </v-app>
 </template>
 
 <script setup>
 import { useRouter } from 'vue-router'
 
-// Configuration des routes
+
 const router = useRouter()
 
-// Fonctions de navigation
-const onClickCours = () => {
-  router.push({ name: 'lessons' })
-}
-
-const onClickCampings = () => {
-  router.push({ name: 'campings' })
-}
-
-const onClickEmployees = () => {
-  router.push({ name: 'employees' })
-}
-
-const onClickForfait = () => {
-  router.push({ name: 'forfait' })
-}
-
-const onClickLocation = () => {
-  router.push({ name: 'location' })
-}
-
-const onClickCustomer = () => {
-  router.push({ name: 'customer' })
-}
-
-const onClickMateriel = () => {
-  router.push({ name: 'materiel' })
-}
-
-const onClickInvoice = () => {
-  router.push({ name: 'invoice' })
-}
-
-const onClickSettings = () => {
-  router.push({ name: 'settings' })
-}
+const onClickCours = () => router.push({ name: 'lessons' })
+const onClickCampings = () => router.push({ name: 'campings' })
+const onClickEmployees = () => router.push({ name: 'employees' })
+const onClickForfait = () => router.push({ name: 'forfait' })
+const onClickLocation = () => router.push({ name: 'location' })
+const onClickCustomer = () => router.push({ name: 'customer' })
+const onClickMateriel = () => router.push({ name: 'materiel' })
+const onClickInvoice = () => router.push({ name: 'invoice' })
+const onClickSettings = () => router.push({ name: 'settings' })
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+
 .v-btn {
   text-transform: none;
+}
+
+.club-title {
+  font-family: 'Pacifico', cursive;
+  font-size: 2.5rem;
+  color: #008080;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  letter-spacing: 1px;
+  transform: rotate(-2deg);
+  transition: all 0.3s ease;
+}
+
+.club-title:hover {
+  transform: rotate(0deg) scale(1.05);
+}
+
+.image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.my-image {
+  width: 100vw;
+  max-height: 50vh;
+  object-fit: cover;
+  border-radius: 0;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.my-image:hover {
+  transform: scale(1.02);
+}
+
+
+
+.v-footer {
+  padding: 10px 20px;
+  font-size: 0.9rem;
 }
 </style>
